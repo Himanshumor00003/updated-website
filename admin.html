@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Dashboard - M-Series Orders</title>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Poppins', sans-serif; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 20px; }
+        .admin-container { max-width: 1400px; margin: 0 auto; background: white; border-radius: 20px; box-shadow: 0 20px 60px rgba(0,0,0,0.3); overflow: hidden; }
+        .admin-header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; text-align: center; }
+        .admin-header h1 { font-size: 2rem; margin-bottom: 10px; }
+        .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; padding: 30px; background: #f8f9fa; }
+        .stat-card { background: white; padding: 20px; border-radius: 15px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); text-align: center; }
+        .stat-card i { font-size: 2.5rem; color: #667eea; margin-bottom: 10px; }
+        .stat-card h3 { font-size: 2rem; color: #333; margin-bottom: 5px; }
+        .stat-card p { color: #666; font-size: 0.9rem; }
+        .filters { padding: 20px 30px; background: white; border-bottom: 1px solid #e0e0e0; display: flex; gap: 15px; flex-wrap: wrap; align-items: center; }
+        .filters select, .filters input { padding: 10px 15px; border: 1px solid #ddd; border-radius: 8px; font-size: 0.9rem; font-family: inherit; }
+        .filters button { background: #667eea; color: white; border: none; padding: 10px 20px; border-radius: 8px; cursor: pointer; transition: all 0.3s; }
+        .filters button:hover { background: #5a67d8; transform: translateY(-2px); }
+        .orders-table-container { padding: 30px; overflow-x: auto; }
+        table { width: 100%; border-collapse: collapse; }
+        th { background: #f8f9fa; padding: 15px; text-align: left; font-weight: 600; color: #555; border-bottom: 2px solid #e0e0e0; }
+        td { padding: 15px; border-bottom: 1px solid #f0f0f0; color: #666; }
+        tr:hover { background: #f8f9fa; }
+        .status-badge { display: inline-block; padding: 5px 12px; border-radius: 20px; font-size: 0.8rem; font-weight: 600; }
+        .status-pending { background: #fff3cd; color: #856404; }
+        .status-processing { background: #cce5ff; color: #004085; }
+        .status-completed { background: #d4edda; color: #155724; }
+        .status-cancelled { background: #f8d7da; color: #721c24; }
+        .action-buttons { display: flex; gap: 8px; flex-wrap: wrap; }
+        .btn-update { background: #28a745; color: white; border: none; padding: 5px 10px; border-radius: 5px; cursor: pointer; font-size: 0.8rem; }
+        .btn-view { background: #17a2b8; color: white; border: none; padding: 5px 10px; border-radius: 5px; cursor: pointer; font-size: 0.8rem; }
+        .btn-verify { background: #ffc107; color: #333; border: none; padding: 5px 10px; border-radius: 5px; cursor: pointer; font-size: 0.8rem; }
+        .loading { text-align: center; padding: 50px; color: #666; }
+        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; justify-content: center; align-items: center; }
+        .modal-content { background: white; border-radius: 15px; max-width: 500px; width: 90%; padding: 30px; position: relative; }
+        .modal-header { margin-bottom: 20px; padding-bottom: 10px; border-bottom: 1px solid #e0e0e0; }
+        .close-modal { position: absolute; top: 15px; right: 20px; font-size: 24px; cursor: pointer; color: #999; }
+        .order-details p { margin: 10px 0; line-height: 1.6; }
+        .order-details strong { display: inline-block; width: 120px; }
+        @media (max-width: 768px) { th, td { padding: 8px; font-size: 0.75rem; } .action-buttons { flex-direction: column; } }
+    </style>
+</head>
+<body>
+    <div class="admin-container">
+        <div class="admin-header">
+            <h1><i class="fas fa-chart-line"></i> M-Series Orders Dashboard</h1>
+            <p>Manage and track all customer orders</p>
+            <a href="api/logout.php" style="float:right; background:#dc3545; color:white; padding:8px 15px; border-radius:8px; text-decoration:none; margin-top:10px;">
+                <i class="fas fa-sign-out-alt"></i> Logout
+            </a>
+            <div style="clear:both"></div>
+        </div>
+
+        <div class="stats-grid" id="statsGrid">
+            <div class="stat-card"><i class="fas fa-shopping-cart"></i><h3 id="totalOrders">0</h3><p>Total Orders</p></div>
+            <div class="stat-card"><i class="fas fa-hourglass-half"></i><h3 id="pendingOrders">0</h3><p>Pending Orders</p></div>
+            <div class="stat-card"><i class="fas fa-check-circle"></i><h3 id="completedOrders">0</h3><p>Completed Orders</p></div>
+            <div class="stat-card"><i class="fas fa-rupee-sign"></i><h3 id="totalRevenue">0</h3><p>Total Revenue</p></div>
+        </div>
+
+        <div class="filters">
+            <select id="statusFilter">
+                <option value="all">All Orders</option>
+                <option value="pending">Pending</option>
+                <option value="processing">Processing</option>
+                <option value="completed">Completed</option>
+                <option value="cancelled">Cancelled</option>
+            </select>
+            <input type="text" id="searchInput" placeholder="Search by name or email...">
+            <button onclick="loadOrders()"><i class="fas fa-search"></i> Search</button>
+            <button onclick="exportToCSV()"><i class="fas fa-download"></i> Export to CSV</button>
+            <button onclick="window.location.href='index.html'"><i class="fas fa-home"></i> Back to Store</button>
+        </div>
+
+        <div class="orders-table-container">
+            <div id="ordersTable"><div class="loading">Loading orders...</div></div>
+        </div>
+    </div>
+
+    
+    <div id="orderModal" class="modal">
+        <div class="modal-content">
+            <span class="close-modal" onclick="closeModal()">&times;</span>
+            <div class="modal-header"><h2><i class="fas fa-receipt"></i> Order Details</h2></div>
+            <div id="orderDetails" class="order-details"></div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE_URL = 'api/';
+
+        fetch('api/check_session.php')
+            .then(res => res.json())
+            .then(data => {
+                if (!data.logged_in || data.role !== 'admin') {
+                    window.location.href = 'login.html';
+                }
+            });
+
+        async function loadOrders() {
+            const status = document.getElementById('statusFilter').value;
+            const search = document.getElementById('searchInput').value;
+            let url = `${API_BASE_URL}get_orders.php?`;
+            if (status !== 'all') url += `status=${status}&`;
+            if (search) url += `search=${encodeURIComponent(search)}&`;
+            try {
+                const response = await fetch(url);
+                const result = await response.json();
+                if (result.success) {
+                    displayOrders(result.data);
+                    updateStats(result.data);
+                } else {
+                    document.getElementById('ordersTable').innerHTML = '<p style="text-align:center; padding:50px;">Error loading orders</p>';
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                document.getElementById('ordersTable').innerHTML = '<p style="text-align:center; padding:50px;">Error connecting to server</p>';
+            }
+        }
+
+        function displayOrders(orders) {
+            if (!orders || orders.length === 0) {
+                document.getElementById('ordersTable').innerHTML = '<p style="text-align:center; padding:50px;">No orders found</p>';
+                return;
+            }
+            const tableHtml = `
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Order ID</th><th>Customer Name</th><th>Email</th><th>Product</th><th>Quantity</th>
+                            <th>Total Amount</th><th>Transaction ID</th><th>Status</th><th>Order Date</th><th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${orders.map(order => `
+                            <tr>
+                                <td>#${order.id}</td>
+                                <td><strong>${escapeHtml(order.customer_name)}</strong></td>
+                                <td>${escapeHtml(order.customer_email)}</td>
+                                <td>${escapeHtml(order.product_name)}</td>
+                                <td>${order.quantity}</td>
+                                <td>₹${parseInt(order.total_amount).toLocaleString()}</td>
+                                <td>${order.transaction_id ? escapeHtml(order.transaction_id) : '—'}</td>
+                                <td><span class="status-badge status-${order.order_status}">${order.order_status.toUpperCase()}</span></td>
+                                <td>${new Date(order.created_at).toLocaleString()}</td>
+                                <td class="action-buttons">
+                                    <button class="btn-view" onclick="viewOrder(${order.id})"><i class="fas fa-eye"></i> View</button>
+                                    <button class="btn-update" onclick="updateOrderStatus(${order.id})"><i class="fas fa-edit"></i> Update</button>
+                                    ${order.order_status === 'pending' && order.transaction_id ? `<button class="btn-verify" onclick="verifyPayment(${order.id})"><i class="fas fa-check-double"></i> Verify Payment</button>` : ''}
+                                </td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            `;
+            document.getElementById('ordersTable').innerHTML = tableHtml;
+        }
+
+        function updateStats(orders) {
+            const total = orders.length;
+            const pending = orders.filter(o => o.order_status === 'pending').length;
+            const completed = orders.filter(o => o.order_status === 'completed').length;
+            const revenue = orders.reduce((sum, o) => sum + parseFloat(o.total_amount), 0);
+            document.getElementById('totalOrders').textContent = total;
+            document.getElementById('pendingOrders').textContent = pending;
+            document.getElementById('completedOrders').textContent = completed;
+            document.getElementById('totalRevenue').textContent = `₹${revenue.toLocaleString()}`;
+        }
+
+        async function viewOrder(orderId) {
+            try {
+                const response = await fetch(`${API_BASE_URL}get_order.php?id=${orderId}`);
+                const result = await response.json();
+                if (result.success) {
+                    const order = result.data;
+                    const detailsHtml = `
+                        <p><strong>Order ID:</strong> #${order.id}</p>
+                        <p><strong>Customer Name:</strong> ${escapeHtml(order.customer_name)}</p>
+                        <p><strong>Email:</strong> ${escapeHtml(order.customer_email)}</p>
+                        <p><strong>Phone:</strong> ${escapeHtml(order.customer_phone)}</p>
+                        <p><strong>Product:</strong> ${escapeHtml(order.product_name)}</p>
+                        <p><strong>Quantity:</strong> ${order.quantity}</p>
+                        <p><strong>Price per unit:</strong> ₹${parseInt(order.price_per_unit).toLocaleString()}</p>
+                        <p><strong>Total Amount:</strong> ₹${parseInt(order.total_amount).toLocaleString()}</p>
+                        <p><strong>Transaction ID:</strong> ${order.transaction_id ? escapeHtml(order.transaction_id) : 'Not provided'}</p>
+                        <p><strong>Status:</strong> <span class="status-badge status-${order.order_status}">${order.order_status.toUpperCase()}</span></p>
+                        <p><strong>Delivery Address:</strong><br>${escapeHtml(order.delivery_address)}</p>
+                        <p><strong>Order Date:</strong> ${new Date(order.created_at).toLocaleString()}</p>
+                    `;
+                    document.getElementById('orderDetails').innerHTML = detailsHtml;
+                    document.getElementById('orderModal').style.display = 'flex';
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                alert('Error loading order details');
+            }
+        }
+
+        async function updateOrderStatus(orderId) {
+            const newStatus = prompt('Enter new status (pending/processing/completed/cancelled):');
+            if (newStatus && ['pending', 'processing', 'completed', 'cancelled'].includes(newStatus)) {
+                try {
+                    const response = await fetch(`${API_BASE_URL}update_order.php`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ order_id: orderId, status: newStatus })
+                    });
+                    const result = await response.json();
+                    if (result.success) {
+                        alert('Order status updated successfully!');
+                        loadOrders();
+                    } else {
+                        alert('Error: ' + result.message);
+                    }
+                } catch (error) {
+                    console.error('Error:', error);
+                    alert('Error updating order status');
+                }
+            }
+        }
+
+       
+        async function verifyPayment(orderId) {
+            if (confirm('Mark this order as payment verified? Status will change to "processing".')) {
+                try {
+                    const response = await fetch(`${API_BASE_URL}update_order.php`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ order_id: orderId, status: 'processing' })
+                    });
+                    const result = await response.json();
+                    if (result.success) {
+                        alert('Payment verified! Order status updated to Processing.');
+                        loadOrders();
+                    } else {
+                        alert('Error: ' + result.message);
+                    }
+                } catch (error) {
+                    console.error('Error:', error);
+                    alert('Error verifying payment');
+                }
+            }
+        }
+
+        function exportToCSV() {
+            const table = document.querySelector('table');
+            if (!table) return;
+            let csv = [];
+            const rows = table.querySelectorAll('tr');
+            for (let row of rows) {
+                const rowData = [];
+                const cells = row.querySelectorAll('th, td');
+                for (let cell of cells) {
+                    rowData.push('"' + cell.innerText.replace(/"/g, '""') + '"');
+                }
+                csv.push(rowData.join(','));
+            }
+            const blob = new Blob([csv.join('\n')], { type: 'text/csv' });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `orders_${new Date().toISOString().slice(0,19)}.csv`;
+            a.click();
+        }
+
+        function closeModal() { document.getElementById('orderModal').style.display = 'none'; }
+        function escapeHtml(text) { const div = document.createElement('div'); div.textContent = text; return div.innerHTML; }
+
+        loadOrders();
+        window.onclick = function(event) {
+            const modal = document.getElementById('orderModal');
+            if (event.target === modal) closeModal();
+        }
+    </script>
+</body>
+</html>

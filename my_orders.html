@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Orders - M-Series LED TV</title>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="style.css">
+    <style>
+        .orders-container {
+            max-width: 1200px;
+            margin: 2rem auto;
+            background: white;
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+        }
+        .logout-btn {
+            float: right;
+            background: #dc3545;
+            color: white;
+            padding: 8px 20px;
+            border-radius: 8px;
+            text-decoration: none;
+        }
+        .orders-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        .orders-table th, .orders-table td {
+            border: 1px solid #ddd;
+            padding: 12px;
+            text-align: left;
+        }
+        .orders-table th {
+            background: #667eea;
+            color: white;
+        }
+        .status-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: 600;
+        }
+        .status-pending { background: #ffc107; color: #000; }
+        .status-processing { background: #17a2b8; color: white; }
+        .status-completed { background: #28a745; color: white; }
+        .status-cancelled { background: #dc3545; color: white; }
+        .loading {
+            text-align: center;
+            padding: 50px;
+            color: #666;
+        }
+        .back-link {
+            display: inline-block;
+            margin-top: 20px;
+            color: #667eea;
+            text-decoration: none;
+        }
+        .no-orders {
+            text-align: center;
+            padding: 50px;
+            color: #666;
+        }
+        .no-orders i {
+            font-size: 3rem;
+            margin-bottom: 10px;
+            color: #ccc;
+        }
+        @media (max-width: 768px) {
+            .orders-table th, .orders-table td {
+                padding: 8px;
+                font-size: 0.8rem;
+            }
+            .logout-btn {
+                float: none;
+                display: inline-block;
+                margin-bottom: 15px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar">
+        <div class="nav-container">
+            <div class="nav-logo" onclick="location.href='index.html'">
+                <img src="logo.jpeg" alt="M-Series Logo" style="height: 40px; width: auto;">
+            </div>
+            <div class="nav-menu" id="navMenu">
+                <div class="nav-link" onclick="location.href='index.html'"><i class="fas fa-home"></i><span>Home</span></div>
+                <div class="nav-link" onclick="location.href='index.html#about'"><i class="fas fa-info-circle"></i><span>About</span></div>
+                <div class="nav-link" onclick="location.href='index.html#catalogue'"><i class="fas fa-tv"></i><span>Catalogue</span></div>
+                <div class="nav-link" onclick="location.href='cart.html'"><i class="fas fa-shopping-cart"></i><span>Cart</span></div>
+            </div>
+            <div class="nav-toggle" onclick="toggleMenu()"><i class="fas fa-bars"></i></div>
+        </div>
+    </nav>
+
+    <div class="orders-container">
+        <h1><i class="fas fa-history"></i> My Orders</h1>
+        <a href="api/logout.php" class="logout-btn"><i class="fas fa-sign-out-alt"></i> Logout</a>
+        <div id="ordersContent" class="loading">Loading your orders...</div>
+        <a href="index.html" class="back-link">← Continue Shopping</a>
+    </div>
+
+    <script>
+        function toggleMenu() {
+            const navMenu = document.getElementById('navMenu');
+            if (navMenu) navMenu.classList.toggle('active');
+        }
+
+        async function loadUserOrders() {
+            const container = document.getElementById('ordersContent');
+            try {
+                const response = await fetch('api/get_user_orders.php');
+                const result = await response.json();
+                if (!result.success) {
+                    if (result.message === 'Not logged in') {
+                        window.location.href = 'login.html';
+                        return;
+                    }
+                    container.innerHTML = '<div class="no-orders"><i class="fas fa-exclamation-triangle"></i><p>Could not load orders. Please try again later.</p></div>';
+                    return;
+                }
+                const orders = result.data;
+                if (!orders || orders.length === 0) {
+                    container.innerHTML = '<div class="no-orders"><i class="fas fa-shopping-bag"></i><p>You have no orders yet.</p><a href="catalogue.html" style="color: #667eea;">Start Shopping</a></div>';
+                    return;
+                }
+                let html = `<table class="orders-table">
+                    <thead>
+                        <tr>
+                            <th>Order ID</th>
+                            <th>Product</th>
+                            <th>Quantity</th>
+                            <th>Total Amount</th>
+                            <th>Status</th>
+                            <th>Order Date</th>
+                        </tr>
+                    </thead>
+                    <tbody>`;
+                orders.forEach(order => {
+                    html += `<tr>
+                        <td>#${order.id}</td>
+                        <td>${escapeHtml(order.product_name)}</td>
+                        <td>${order.quantity}</td>
+                        <td>₹${parseInt(order.total_amount).toLocaleString()}</td>
+                        <td><span class="status-badge status-${order.order_status}">${order.order_status.toUpperCase()}</span></td>
+                        <td>${new Date(order.created_at).toLocaleString()}</td>
+                    </tr>`;
+                });
+                html += `</tbody></table>`;
+                container.innerHTML = html;
+            } catch (err) {
+                console.error('Error loading orders:', err);
+                container.innerHTML = '<div class="no-orders"><i class="fas fa-plug"></i><p>Network error. Please check your connection.</p></div>';
+            }
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        loadUserOrders();
+    </script>
+</body>
+</html>

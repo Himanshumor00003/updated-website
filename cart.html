@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Shopping Cart - M-Series</title>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="style.css">
+    <style>
+        .cart-container { max-width: 1200px; margin: 2rem auto; padding: 0 2rem; }
+        .cart-table { width: 100%; border-collapse: collapse; background: white; border-radius: 15px; overflow: hidden; }
+        .cart-table th, .cart-table td { padding: 15px; text-align: left; border-bottom: 1px solid #eee; }
+        .cart-table th { background: #667eea; color: white; }
+        .quantity-input { width: 60px; padding: 5px; }
+        .remove-btn { color: red; cursor: pointer; }
+        .cart-total { text-align: right; margin-top: 20px; font-size: 1.5rem; font-weight: bold; }
+        .checkout-btn { background: #28a745; color: white; padding: 12px 30px; border: none; border-radius: 8px; cursor: pointer; }
+        .empty-cart { text-align: center; padding: 50px; }
+        .continue-shop { display: inline-block; margin-top: 20px; color: #667eea; }
+    </style>
+</head>
+<body>
+    <nav class="navbar">
+        <div class="nav-container">
+            <div class="nav-logo" onclick="navigateTo('home')">
+                <img src="logo.jpeg" alt="M-Series Logo" style="height: 40px; width: auto;">
+            </div>
+            <div class="nav-menu" id="navMenu">
+                <div class="nav-link" onclick="navigateTo('home')"><i class="fas fa-home"></i><span>Home</span></div>
+                <div class="nav-link" onclick="navigateTo('about')"><i class="fas fa-info-circle"></i><span>About</span></div>
+                <div class="nav-link" onclick="navigateTo('catalogue')"><i class="fas fa-tv"></i><span>Catalogue</span></div>
+                <div class="nav-link" id="authLink" onclick="handleAuth()"><i class="fas fa-user"></i><span id="authText">Login</span></div>
+                <div class="nav-link" onclick="location.href='cart.html'"><i class="fas fa-shopping-cart"></i><span>Cart <span id="cart-count" class="cart-badge">0</span></span></div>
+            </div>
+            <div class="nav-toggle" onclick="toggleMenu()"><i class="fas fa-bars"></i></div>
+        </div>
+    </nav>
+    <div class="cart-container">
+        <h1>Shopping Cart</h1>
+        <div id="cart-content">Loading...</div>
+    </div>
+    <script>
+        
+        function toggleMenu() {
+            const navMenu = document.getElementById('navMenu');
+            if (navMenu) navMenu.classList.toggle('active');
+        }
+
+        function navigateTo(page) {
+            if (page === 'home') window.location.href = 'index.html';
+            else if (page === 'about') window.location.href = 'index.html#about';
+            else if (page === 'catalogue') window.location.href = 'index.html#catalogue';
+        }
+
+        function handleAuth() {
+            window.location.href = 'login.html';
+        }
+
+        // ========== CART FUNCTIONS ==========
+        async function loadCart() {
+            const res = await fetch('api/get_cart.php');
+            const data = await res.json();
+            if (!data.success || data.items.length === 0) {
+                document.getElementById('cart-content').innerHTML = '<div class="empty-cart"><i class="fas fa-shopping-cart"></i><p>Your cart is empty</p><a href="index.html" class="continue-shop">Continue Shopping</a></div>';
+                return;
+            }
+            let html = `<table class="cart-table"><thead><tr><th>Product</th><th>Price</th><th>Quantity</th><th>Subtotal</th><th></th></tr></thead><tbody>`;
+            data.items.forEach(item => {
+                const subtotal = item.price * item.quantity;
+                html += `<tr data-id="${item.id}">
+                            <td>${item.name}</td>
+                            <td>₹${item.price.toLocaleString()}</td>
+                            <td><input type="number" class="quantity-input" value="${item.quantity}" min="1" max="${item.stock}" data-id="${item.id}"></td>
+                            <td class="subtotal-${item.id}">₹${subtotal.toLocaleString()}</td>
+                            <td><i class="fas fa-trash remove-btn" data-id="${item.id}"></i></td>
+                         </tr>`;
+            });
+            html += `</tbody></table>
+                     <div class="cart-total">Total: ₹<span id="cart-total">${data.total.toLocaleString()}</span></div>
+                     <button id="checkoutBtn" class="checkout-btn">Proceed to Checkout</button>`;
+            document.getElementById('cart-content').innerHTML = html;
+
+            document.querySelectorAll('.quantity-input').forEach(inp => {
+                inp.addEventListener('change', async (e) => {
+                    const pid = inp.dataset.id;
+                    const qty = inp.value;
+                    await fetch('api/update_cart.php', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ product_id: pid, quantity: qty }) });
+                    loadCart();
+                });
+            });
+            document.querySelectorAll('.remove-btn').forEach(btn => {
+                btn.addEventListener('click', async () => {
+                    const pid = btn.dataset.id;
+                    await fetch('api/update_cart.php', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ product_id: pid, quantity: 0 }) });
+                    loadCart();
+                });
+            });
+            document.getElementById('checkoutBtn').addEventListener('click', () => { window.location.href = 'checkout.html'; });
+        }
+
+        async function updateBadge() {
+            const res = await fetch('api/get_cart.php');
+            const data = await res.json();
+            const badge = document.getElementById('cart-count');
+            if (badge) badge.innerText = data.count;
+        }
+
+        loadCart();
+        updateBadge();
+    </script>
+</body>
+</html>

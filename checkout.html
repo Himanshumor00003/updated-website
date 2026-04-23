@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Checkout - M-Series</title>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body { font-family: 'Poppins', sans-serif; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 20px; }
+        .checkout-container { max-width: 800px; margin: 0 auto; background: white; border-radius: 20px; padding: 30px; box-shadow: 0 10px 30px rgba(0,0,0,0.2); }
+        .form-group { margin-bottom: 15px; }
+        label { display: block; margin-bottom: 5px; font-weight: 500; }
+        input, textarea { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 8px; font-family: inherit; }
+        button { background: #28a745; color: white; padding: 12px 30px; border: none; border-radius: 8px; cursor: pointer; font-weight: 600; width: 100%; }
+        button:disabled { opacity: 0.6; cursor: not-allowed; }
+        .order-items { margin: 20px 0; border-top: 1px solid #eee; padding-top: 20px; }
+        .item-row { display: flex; justify-content: space-between; margin-bottom: 10px; }
+        .success-message { background: #d4edda; color: #155724; padding: 15px; border-radius: 10px; margin-bottom: 20px; text-align: center; }
+        .hidden { display: none; }
+        .order-details { background: #f8f9fa; padding: 15px; border-radius: 10px; margin-top: 15px; }
+        .back-link { display: inline-block; margin-top: 15px; color: #667eea; text-decoration: none; }
+        .qr-section { text-align: center; margin: 20px 0; padding: 15px; background: #f8f9fa; border-radius: 10px; }
+        .qr-section img { max-width: 200px; margin: 10px auto; display: block; }
+        .payment-note { font-size: 0.85rem; color: #666; margin-top: 10px; }
+    </style>
+</head>
+<body>
+    <div class="checkout-container">
+        <h2>Checkout</h2>
+        <div id="cart-summary"></div>
+
+        <!-- QR Code Payment Section -->
+        <div class="qr-section">
+            <h4><i class="fas fa-qrcode"></i> UPI Payment</h4>
+            <img src="upi_qr.jpeg" alt="UPI QR Code" id="qrImage" style="max-width: 180px;">
+            <p class="payment-note">Scan this QR code using any UPI app (Google Pay, PhonePe, Paytm, etc.) to pay.</p>
+            <p class="payment-note"><strong>After payment, enter the Transaction ID / UTR number below.</strong></p>
+        </div>
+
+        <div id="successMessage" class="success-message hidden"></div>
+        <form id="checkoutForm">
+            <div class="form-group"><label>Full Name</label><input type="text" id="name" required></div>
+            <div class="form-group"><label>Email</label><input type="email" id="email" required></div>
+            <div class="form-group"><label>Phone</label><input type="tel" id="phone" required></div>
+            <div class="form-group"><label>Delivery Address</label><textarea id="address" rows="3" required></textarea></div>
+            <div class="form-group">
+                <label>Transaction ID (UPI Reference / UTR) <span style="color:red;">*</span></label>
+                <input type="text" id="transaction_id" placeholder="e.g., 123456789012" required>
+                <small>Enter the transaction ID from your payment app after scanning QR.</small>
+            </div>
+            <button type="submit" id="placeOrderBtn">Place Order (After Payment)</button>
+        </form>
+        <div id="orderDetails" class="order-details hidden"></div>
+        <a href="index.html" class="back-link">← Continue Shopping</a>
+    </div>
+
+    <script>
+        async function loadCartSummary() {
+            const res = await fetch('api/get_cart.php');
+            const data = await res.json();
+            if (!data.success || data.items.length === 0) {
+                window.location.href = 'cart.html';
+                return;
+            }
+            let html = '<h3>Your Items</h3>';
+            data.items.forEach(item => {
+                html += `<div class="item-row"><span>${item.name} x ${item.quantity}</span><span>₹${(item.price * item.quantity).toLocaleString()}</span></div>`;
+            });
+            html += `<div class="item-row"><strong>Total</strong><strong>₹${data.total.toLocaleString()}</strong></div>`;
+            document.getElementById('cart-summary').innerHTML = html;
+        }
+
+        loadCartSummary();
+
+        document.getElementById('checkoutForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const submitBtn = document.getElementById('placeOrderBtn');
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'Processing...';
+
+            const orderData = {
+                customer_name: document.getElementById('name').value,
+                customer_email: document.getElementById('email').value,
+                customer_phone: document.getElementById('phone').value,
+                delivery_address: document.getElementById('address').value,
+                transaction_id: document.getElementById('transaction_id').value.trim()
+            };
+
+            if (!orderData.transaction_id) {
+                alert('Please enter the Transaction ID after scanning the QR and making payment.');
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'Place Order';
+                return;
+            }
+
+            try {
+                const response = await fetch('api/checkout.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(orderData)
+                });
+                
+                const rawText = await response.text();
+                console.log('Raw response:', rawText);
+                
+                let result;
+                try {
+                    result = JSON.parse(rawText);
+                } catch (parseError) {
+                    console.error('JSON parse error:', parseError);
+                    alert('Server error. Please try again.');
+                    submitBtn.disabled = false;
+                    submitBtn.textContent = 'Place Order';
+                    return;
+                }
+
+                if (result.success) {
+                    document.getElementById('checkoutForm').classList.add('hidden');
+                    const successDiv = document.getElementById('successMessage');
+                    successDiv.innerHTML = `
+                        <i class="fas fa-check-circle"></i>
+                        <strong>Order Placed Successfully!</strong><br>
+                        Order ID: #${result.order_id}<br>
+                        Total Amount: ₹${result.total.toLocaleString()}<br>
+                        <strong>Payment Status:</strong> Pending Verification<br>
+                        Our team will verify your payment within 24 hours.
+                    `;
+                    successDiv.classList.remove('hidden');
+
+                    const detailsDiv = document.getElementById('orderDetails');
+                    detailsDiv.innerHTML = `
+                        <h4>Order Summary</h4>
+                        <p><strong>Order ID:</strong> ${result.order_id}</p>
+                        <p><strong>Total Paid:</strong> ₹${result.total.toLocaleString()}</p>
+                        <p><strong>Transaction ID:</strong> ${orderData.transaction_id}</p>
+                        <p>Please keep your transaction ID for reference.</p>
+                    `;
+                    detailsDiv.classList.remove('hidden');
+                } else {
+                    alert('Error: ' + result.message);
+                    submitBtn.disabled = false;
+                    submitBtn.textContent = 'Place Order';
+                }
+            } catch (err) {
+                console.error('Network error:', err);
+                alert('Network error: ' + err.message);
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'Place Order';
+            }
+        });
+    </script>
+</body>
+</html>
